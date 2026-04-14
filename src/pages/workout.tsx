@@ -4,10 +4,21 @@ import { supabase, isDemoMode } from "@/src/lib/supabase";
 import { getDemoActiveDays, advanceDemoDay } from "@/src/lib/demo-data";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { ArrowLeft, Check, Timer, X, Activity, PlayCircle, MessageSquare } from "lucide-react";
+import { ArrowLeft, Check, Timer, X, Activity, PlayCircle, MessageSquare, Flame } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { format, startOfWeek } from "date-fns";
 import { getExerciseGif } from "@/src/lib/exercise-gifs";
+
+// ── Set type helper ───────────────────────────────────────────────────────────
+function getSetType(
+  setNumber: number,
+  totalSets: number,
+  workingSets?: number | null
+): "warmup" | "working" {
+  if (!workingSets || workingSets >= totalSets) return "working";
+  const warmupCount = totalSets - workingSets;
+  return setNumber <= warmupCount ? "warmup" : "working";
+}
 
 // ── Mark today as trained in the weekly consistency key ──────────────────────
 function markTodayConsistency() {
@@ -80,6 +91,7 @@ export function Workout() {
               reps: "",
               completed: false,
               id: null,
+              type: getSetType(i + 1, ex.sets, ex.working_sets),
             })),
           }))
         );
@@ -141,6 +153,8 @@ export function Workout() {
               reps: existing?.reps?.toString() || "",
               completed: existing?.completed || false,
               id: existing?.id || null,
+              type: (existing?.set_type as "warmup" | "working" | undefined) ??
+                getSetType(i, ex.sets, ex.working_sets),
             });
           }
           return { ...ex, setsState: sets };
@@ -236,6 +250,7 @@ export function Workout() {
             weight: set.weight ? parseFloat(set.weight) : null,
             reps: set.reps ? parseInt(set.reps) : null,
             completed: isCompleting,
+            ...(set.type ? { set_type: set.type } : {}),
           })
           .select("id")
           .single();
@@ -463,7 +478,9 @@ export function Workout() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-base leading-tight">{exercise.name}</h3>
                   <p className="text-sm text-zinc-500 mt-0.5">
-                    {exercise.sets} séries · {exercise.reps_range} reps
+                    {exercise.working_sets && exercise.working_sets < exercise.sets
+                      ? `${exercise.sets} séries (${exercise.working_sets} válidas) · ${exercise.reps_range} reps`
+                      : `${exercise.sets} séries · ${exercise.reps_range} reps`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -515,11 +532,32 @@ export function Workout() {
                       key={setIdx}
                       className={cn(
                         "grid grid-cols-[3rem_1fr_1fr_3rem] gap-2 items-center p-2 rounded-xl transition-all duration-200",
-                        set.completed ? "bg-white/[0.03]" : "bg-transparent"
+                        set.completed
+                          ? "bg-white/[0.03]"
+                          : (exercise.working_sets && exercise.working_sets < exercise.sets && set.type === "working")
+                          ? "bg-amber-950/20"
+                          : "bg-transparent"
                       )}
                     >
-                      <div className="text-center text-sm font-medium text-zinc-500">
-                        {set.set_number}
+                      {/* Coluna de número da série — indicadores visuais só no Pacholok (working_sets definido) */}
+                      <div className="flex flex-col items-center justify-center gap-0.5">
+                        <span className={cn(
+                          "text-sm font-medium",
+                          (exercise.working_sets && exercise.working_sets < exercise.sets)
+                            ? set.type === "working" ? "text-amber-400" : "text-zinc-500"
+                            : "text-zinc-400"
+                        )}>
+                          {set.set_number}
+                        </span>
+                        {exercise.working_sets && exercise.working_sets < exercise.sets ? (
+                          set.type === "working" ? (
+                            <Flame className="w-3 h-3 text-amber-500" strokeWidth={1.75} />
+                          ) : (
+                            <span className="text-[8px] font-semibold leading-none text-zinc-600">
+                              Aquec.
+                            </span>
+                          )
+                        ) : null}
                       </div>
                       <Input
                         type="number"

@@ -6,6 +6,7 @@ export type DemoExercise = {
   id: string;
   name: string;
   sets: number;
+  working_sets?: number; // if set, first (sets - working_sets) are warmup
   reps_range: string;
   exercise_order: number;
 };
@@ -167,6 +168,105 @@ export const DEMO_DAYS_AP: DemoDay[] = [
   },
 ];
 
+export const DEMO_DAYS_PACHOLOK: DemoDay[] = [
+  {
+    id: "pk-day-1",
+    name: "DIA 1 – PULL (COSTAS + BÍCEPS)",
+    short_name: "Pull",
+    day_order: 1,
+    is_rest_day: false,
+    color: "bg-blue-500",
+    exercises: [
+      { id: "pk-1-ex1", name: "Puxada na frente", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 1 },
+      { id: "pk-1-ex2", name: "Remada máquina", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 2 },
+      { id: "pk-1-ex3", name: "Pulley triângulo", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 3 },
+      { id: "pk-1-ex4", name: "Crucifixo inverso", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 4 },
+      { id: "pk-1-ex5", name: "Rosca Scott", sets: 5, working_sets: 3, reps_range: "10-12", exercise_order: 5 },
+    ],
+  },
+  {
+    id: "pk-day-2",
+    name: "DIA 2 – PUSH (PEITO + OMBRO + TRÍCEPS)",
+    short_name: "Push",
+    day_order: 2,
+    is_rest_day: false,
+    color: "bg-red-500",
+    exercises: [
+      { id: "pk-2-ex1", name: "Supino inclinado máquina", sets: 4, working_sets: 2, reps_range: "6-10", exercise_order: 1 },
+      { id: "pk-2-ex2", name: "Supino reto máquina", sets: 4, working_sets: 2, reps_range: "8-12", exercise_order: 2 },
+      { id: "pk-2-ex3", name: "Crucifixo polia", sets: 4, working_sets: 2, reps_range: "10-15", exercise_order: 3 },
+      { id: "pk-2-ex4", name: "Desenvolvimento máquina", sets: 4, working_sets: 2, reps_range: "8-12", exercise_order: 4 },
+      { id: "pk-2-ex5", name: "Elevação lateral halter", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 5 },
+      { id: "pk-2-ex6", name: "Tríceps corda", sets: 5, working_sets: 3, reps_range: "10-12", exercise_order: 6 },
+    ],
+  },
+  {
+    id: "pk-day-3",
+    name: "DIA 3 – LEGS",
+    short_name: "Legs",
+    day_order: 3,
+    is_rest_day: false,
+    color: "bg-green-500",
+    exercises: [
+      { id: "pk-3-ex1", name: "Mesa flexora", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 1 },
+      { id: "pk-3-ex2", name: "Hack machine", sets: 4, working_sets: 2, reps_range: "6-10", exercise_order: 2 },
+      { id: "pk-3-ex3", name: "Leg press", sets: 4, working_sets: 2, reps_range: "10-12", exercise_order: 3 },
+      { id: "pk-3-ex4", name: "Cadeira extensora", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 4 },
+      { id: "pk-3-ex5", name: "Panturrilha", sets: 5, working_sets: 3, reps_range: "12-15", exercise_order: 5 },
+    ],
+  },
+  {
+    id: "pk-day-4",
+    name: "DIA 4 – DESCANSO",
+    short_name: "Descanso",
+    day_order: 4,
+    is_rest_day: true,
+    color: "bg-emerald-500",
+    exercises: [],
+  },
+  {
+    id: "pk-day-5",
+    name: "DIA 5 – UPPER (FOCO ESTÉTICO)",
+    short_name: "Upper",
+    day_order: 5,
+    is_rest_day: false,
+    color: "bg-purple-500",
+    exercises: [
+      { id: "pk-5-ex1", name: "Supino inclinado máquina", sets: 4, working_sets: 2, reps_range: "8-12", exercise_order: 1 },
+      { id: "pk-5-ex2", name: "Puxada na frente", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 2 },
+      { id: "pk-5-ex3", name: "Remada máquina", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 3 },
+      { id: "pk-5-ex4", name: "Elevação lateral halter", sets: 5, working_sets: 3, reps_range: "12-15", exercise_order: 4 },
+      { id: "pk-5-ex5", name: "Crucifixo inverso", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 5 },
+      { id: "pk-5-ex6", name: "Rosca direta", sets: 5, working_sets: 3, reps_range: "8-12", exercise_order: 6 },
+      { id: "pk-5-ex7", name: "Tríceps crossover (chifre)", sets: 5, working_sets: 3, reps_range: "10-12", exercise_order: 7 },
+    ],
+  },
+  {
+    id: "pk-day-6",
+    name: "DIA 6 – LOWER (POSTERIOR)",
+    short_name: "Lower",
+    day_order: 6,
+    is_rest_day: false,
+    color: "bg-yellow-500",
+    exercises: [
+      { id: "pk-6-ex1", name: "Cadeira flexora", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 1 },
+      { id: "pk-6-ex2", name: "Hack machine (leve)", sets: 4, working_sets: 2, reps_range: "10-12", exercise_order: 2 },
+      { id: "pk-6-ex3", name: "Leg press (pé baixo)", sets: 4, working_sets: 2, reps_range: "10-12", exercise_order: 3 },
+      { id: "pk-6-ex4", name: "Mesa flexora", sets: 4, working_sets: 2, reps_range: "10-12", exercise_order: 4 },
+      { id: "pk-6-ex5", name: "Panturrilha", sets: 5, working_sets: 3, reps_range: "12-15", exercise_order: 5 },
+    ],
+  },
+  {
+    id: "pk-day-7",
+    name: "DIA 7 – DESCANSO",
+    short_name: "Descanso",
+    day_order: 7,
+    is_rest_day: true,
+    color: "bg-emerald-500",
+    exercises: [],
+  },
+];
+
 // ── Demo plan type helpers ──────────────────────────────────────────────────
 export function getDemoPlanType(): WorkoutType {
   return (localStorage.getItem("demo_plan_type") as WorkoutType) ?? "upper_lower";
@@ -178,7 +278,10 @@ export function setDemoPlanType(type: WorkoutType) {
 }
 
 export function getDemoActiveDays(): DemoDay[] {
-  return getDemoPlanType() === "anterior_posterior" ? DEMO_DAYS_AP : DEMO_DAYS;
+  const type = getDemoPlanType();
+  if (type === "anterior_posterior") return DEMO_DAYS_AP;
+  if (type === "pacholok") return DEMO_DAYS_PACHOLOK;
+  return DEMO_DAYS;
 }
 
 export function getDemoCurrentDayOrder(): number {

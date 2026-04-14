@@ -56,6 +56,18 @@ export const EXERCISE_GIFS: Record<string, string> = {
     "https://media.tenor.com/vFJSvh8AvhAAAAAM/a1.gif",
   "elevação lateral (leve)":
     "https://www.mundoboaforma.com.br/wp-content/uploads/2020/12/ombros-elevacao-lateral-de-ombros-com-halteres.gif",
+  "pulley triângulo":
+    "https://www.mundoboaforma.com.br/wp-content/uploads/2020/12/costas-puxada-para-frente-no-pulley-com-triangulo.gif",
+  "supino reto máquina":
+    "https://www.hipertrofia.org/blog/wp-content/uploads/2024/04/lever-chest-press-.gif",
+  "crucifixo polia":
+    "https://www.hipertrofia.org/blog/wp-content/uploads/2024/08/crucifixo-crossover-alto.gif",
+  "desenvolvimento máquina":
+    "https://karoldeliberato.com.br/wp-content/uploads/2023/04/image70.gif",
+  "leg press (pé baixo)":
+    "https://treinototal.com.br/wp-content/uploads/2023/08/leg-press-45%C2%B0.gif",
+  "leg press pé baixo":
+    "https://treinototal.com.br/wp-content/uploads/2023/08/leg-press-45%C2%B0.gif",
 };
 
 /**

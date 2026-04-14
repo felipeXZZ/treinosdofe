@@ -9,7 +9,7 @@ import {
   type WorkoutType,
   PLAN_META,
   createPlan,
-  deleteUserPlans,
+  deleteOldPlans,
 } from "@/src/lib/plan-templates";
 import { setDemoPlanType, getDemoPlanType } from "@/src/lib/demo-data";
 
@@ -42,14 +42,13 @@ export function Onboarding() {
     }
   }, [isChanging]);
 
-  const handleConfirm = async () => {
-    if (!selected) return;
+  const applyPlan = async (type: WorkoutType) => {
     setLoading(true);
     setError(null);
 
     try {
       if (isDemoMode) {
-        setDemoPlanType(selected);
+        setDemoPlanType(type);
         navigate("/");
         return;
       }
@@ -62,9 +61,9 @@ export function Onboarding() {
         return;
       }
 
-      // Delete existing plans before creating the new one
-      await deleteUserPlans(user.id);
-      await createPlan(selected, user.id);
+      // Create new plan first, then remove old ones — user is never left with zero plans
+      await createPlan(type, user.id);
+      await deleteOldPlans(user.id);
       navigate("/");
     } catch (err: any) {
       setError(err.message ?? "Ocorreu um erro ao criar o plano");
@@ -73,7 +72,12 @@ export function Onboarding() {
     }
   };
 
-  const planTypes: WorkoutType[] = ["upper_lower", "anterior_posterior"];
+  const handleConfirm = () => {
+    if (!selected) return;
+    applyPlan(selected);
+  };
+
+  const planTypes: WorkoutType[] = ["upper_lower", "anterior_posterior", "pacholok"];
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col text-zinc-100">
@@ -113,7 +117,10 @@ export function Onboarding() {
             return (
               <button
                 key={type}
-                onClick={() => setSelected(type)}
+                onClick={() => {
+                  setSelected(type);
+                  if (isChanging) applyPlan(type);
+                }}
                 style={{ animationDelay: `${idx * 60}ms` }}
                 className={cn(
                   "w-full text-left rounded-2xl border p-5 transition-all duration-200 active:scale-[0.98] animate-slide-up",
@@ -203,6 +210,8 @@ function PlanPreview({ type }: { type: WorkoutType }) {
       { label: "Qua", tag: "Desc.", color: "text-emerald-400" },
       { label: "Qui", tag: "Upper", color: "text-purple-400" },
       { label: "Sex", tag: "Lower", color: "text-yellow-400" },
+      { label: "Sáb", tag: "—", color: "text-zinc-600" },
+      { label: "Dom", tag: "—", color: "text-zinc-600" },
     ],
     anterior_posterior: [
       { label: "Seg", tag: "Ant.", color: "text-orange-400" },
@@ -210,6 +219,17 @@ function PlanPreview({ type }: { type: WorkoutType }) {
       { label: "Qua", tag: "Desc.", color: "text-emerald-400" },
       { label: "Qui", tag: "Ant.", color: "text-orange-400" },
       { label: "Sex", tag: "Post.", color: "text-cyan-400" },
+      { label: "Sáb", tag: "—", color: "text-zinc-600" },
+      { label: "Dom", tag: "—", color: "text-zinc-600" },
+    ],
+    pacholok: [
+      { label: "Seg", tag: "Pull", color: "text-blue-400" },
+      { label: "Ter", tag: "Push", color: "text-red-400" },
+      { label: "Qua", tag: "Legs", color: "text-green-400" },
+      { label: "Qui", tag: "Desc.", color: "text-emerald-400" },
+      { label: "Sex", tag: "Upper", color: "text-purple-400" },
+      { label: "Sáb", tag: "Lower", color: "text-yellow-400" },
+      { label: "Dom", tag: "Desc.", color: "text-emerald-400" },
     ],
   };
 
@@ -221,14 +241,6 @@ function PlanPreview({ type }: { type: WorkoutType }) {
           <span className={cn("text-[9px] font-bold", item.color)}>{item.tag}</span>
         </div>
       ))}
-      <div className="flex flex-col items-center gap-1 ml-0.5">
-        <span className="text-[9px] text-zinc-600 font-medium">Sáb</span>
-        <span className="text-[9px] font-bold text-zinc-600">—</span>
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-[9px] text-zinc-600 font-medium">Dom</span>
-        <span className="text-[9px] font-bold text-zinc-600">—</span>
-      </div>
     </div>
   );
 }

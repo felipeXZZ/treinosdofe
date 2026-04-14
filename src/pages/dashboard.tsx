@@ -91,9 +91,9 @@ export function Dashboard() {
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase
           .from("workout_plans")
-          .select("id")
+          .select("id, name")
           .eq("user_id", user.id)
-          .limit(1),
+          .order("created_at", { ascending: false }),
         supabase
           .from("cardio_logs")
           .select("duration_minutes")
@@ -105,7 +105,7 @@ export function Dashboard() {
       setProfile(profileRes.data);
       if (cardioRes.data) {
         setWeeklyCardioMinutes(
-          cardioRes.data.reduce((a, l) => a + l.duration_minutes, 0)
+          cardioRes.data.reduce((a: number, l: { duration_minutes: number }) => a + l.duration_minutes, 0)
         );
       }
 
@@ -115,7 +115,19 @@ export function Dashboard() {
       }
 
       if (plansRes.data && plansRes.data.length > 0) {
-        const planId = plansRes.data[0].id;
+        // Pick the plan that matches the profile's workout_type.
+        // Fallback to the most recently created plan if none matches.
+        const workoutType = profileRes.data?.workout_type ?? "upper_lower";
+        const typeKeyMap: Record<string, string> = {
+          upper_lower: "Upper",
+          anterior_posterior: "Anterior",
+          pacholok: "Pacholok",
+        };
+        const typeKey = typeKeyMap[workoutType] ?? "Upper";
+        const activePlan =
+          plansRes.data.find((p: { id: string; name: string }) => p.name.includes(typeKey)) ??
+          plansRes.data[0];
+        const planId = activePlan.id;
 
         // Round 2 – days list + last log (with day_order via join) in parallel
         const [daysRes, lastLogRes] = await Promise.all([
@@ -144,7 +156,7 @@ export function Dashboard() {
           }
         }
 
-        let nextDay = days.find((d) => d.day_order === nextDayOrder);
+        let nextDay = days.find((d: { day_order: number }) => d.day_order === nextDayOrder);
         if (!nextDay) nextDay = days[0];
         setTodayWorkout(nextDay ?? null);
       }

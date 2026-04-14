@@ -5,7 +5,7 @@ create table profiles (
   name text,
   body_weight numeric,
   goal text,
-  workout_type text default 'upper_lower' check (workout_type in ('upper_lower', 'anterior_posterior')),
+  workout_type text default 'upper_lower' check (workout_type in ('upper_lower', 'anterior_posterior', 'pacholok')),
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -33,6 +33,7 @@ create table exercises (
   day_id uuid references workout_days(id) on delete cascade not null,
   name text not null,
   sets integer not null,
+  working_sets integer, -- if set, first (sets - working_sets) are warmup; null means all sets are working sets
   reps_range text not null,
   exercise_order integer not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -58,6 +59,7 @@ create table set_logs (
   weight numeric,
   reps integer,
   completed boolean default false,
+  set_type text default 'working' check (set_type in ('warmup', 'working')),
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -168,7 +170,28 @@ create trigger on_auth_user_created
 --   alter table profiles
 --     add column if not exists workout_type text
 --       default 'upper_lower'
---       check (workout_type in ('upper_lower', 'anterior_posterior'));
+--       check (workout_type in ('upper_lower', 'anterior_posterior', 'pacholok'));
 --
 --   update profiles set workout_type = 'upper_lower' where workout_type is null;
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION for adding 'pacholok' to an existing deployment:
+--
+--   alter table profiles
+--     drop constraint if exists profiles_workout_type_check;
+--
+--   alter table profiles
+--     add constraint profiles_workout_type_check
+--       check (workout_type in ('upper_lower', 'anterior_posterior', 'pacholok'));
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION for warmup/working sets (run once on existing deployments):
+--
+--   alter table exercises
+--     add column if not exists working_sets integer;
+--
+--   alter table set_logs
+--     add column if not exists set_type text
+--       default 'working'
+--       check (set_type in ('warmup', 'working'));
+--
+--   update set_logs set set_type = 'working' where set_type is null;
 -- ─────────────────────────────────────────────────────────────────────────────

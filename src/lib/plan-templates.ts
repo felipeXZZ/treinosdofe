@@ -1,10 +1,11 @@
 import { supabase } from "@/src/lib/supabase";
 
-export type WorkoutType = "upper_lower" | "anterior_posterior";
+export type WorkoutType = "upper_lower" | "anterior_posterior" | "pacholok";
 
 type ExerciseTemplate = {
   name: string;
   sets: number;
+  working_sets?: number; // if set, the first (sets - working_sets) are warmup
   reps_range: string;
   exercise_order: number;
 };
@@ -144,6 +145,91 @@ export const ANTERIOR_POSTERIOR_DAYS: DayTemplate[] = [
   },
 ];
 
+export const PACHOLOK_DAYS: DayTemplate[] = [
+  {
+    name: "DIA 1 – PULL (COSTAS + BÍCEPS)",
+    short_name: "Pull",
+    day_order: 1,
+    is_rest_day: false,
+    exercises: [
+      { name: "Puxada na frente", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 1 },
+      { name: "Remada máquina", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 2 },
+      { name: "Pulley triângulo", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 3 },
+      { name: "Crucifixo inverso", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 4 },
+      { name: "Rosca Scott", sets: 5, working_sets: 3, reps_range: "10-12", exercise_order: 5 },
+    ],
+  },
+  {
+    name: "DIA 2 – PUSH (PEITO + OMBRO + TRÍCEPS)",
+    short_name: "Push",
+    day_order: 2,
+    is_rest_day: false,
+    exercises: [
+      { name: "Supino inclinado máquina", sets: 4, working_sets: 2, reps_range: "6-10", exercise_order: 1 },
+      { name: "Supino reto máquina", sets: 4, working_sets: 2, reps_range: "8-12", exercise_order: 2 },
+      { name: "Crucifixo polia", sets: 4, working_sets: 2, reps_range: "10-15", exercise_order: 3 },
+      { name: "Desenvolvimento máquina", sets: 4, working_sets: 2, reps_range: "8-12", exercise_order: 4 },
+      { name: "Elevação lateral halter", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 5 },
+      { name: "Tríceps corda", sets: 5, working_sets: 3, reps_range: "10-12", exercise_order: 6 },
+    ],
+  },
+  {
+    name: "DIA 3 – LEGS",
+    short_name: "Legs",
+    day_order: 3,
+    is_rest_day: false,
+    exercises: [
+      { name: "Mesa flexora", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 1 },
+      { name: "Hack machine", sets: 4, working_sets: 2, reps_range: "6-10", exercise_order: 2 },
+      { name: "Leg press", sets: 4, working_sets: 2, reps_range: "10-12", exercise_order: 3 },
+      { name: "Cadeira extensora", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 4 },
+      { name: "Panturrilha", sets: 5, working_sets: 3, reps_range: "12-15", exercise_order: 5 },
+    ],
+  },
+  {
+    name: "DIA 4 – DESCANSO",
+    short_name: "Descanso",
+    day_order: 4,
+    is_rest_day: true,
+    exercises: [],
+  },
+  {
+    name: "DIA 5 – UPPER (FOCO ESTÉTICO)",
+    short_name: "Upper",
+    day_order: 5,
+    is_rest_day: false,
+    exercises: [
+      { name: "Supino inclinado máquina", sets: 4, working_sets: 2, reps_range: "8-12", exercise_order: 1 },
+      { name: "Puxada na frente", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 2 },
+      { name: "Remada máquina", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 3 },
+      { name: "Elevação lateral halter", sets: 5, working_sets: 3, reps_range: "12-15", exercise_order: 4 },
+      { name: "Crucifixo inverso", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 5 },
+      { name: "Rosca direta", sets: 5, working_sets: 3, reps_range: "8-12", exercise_order: 6 },
+      { name: "Tríceps crossover (chifre)", sets: 5, working_sets: 3, reps_range: "10-12", exercise_order: 7 },
+    ],
+  },
+  {
+    name: "DIA 6 – LOWER (POSTERIOR)",
+    short_name: "Lower",
+    day_order: 6,
+    is_rest_day: false,
+    exercises: [
+      { name: "Cadeira flexora", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 1 },
+      { name: "Hack machine (leve)", sets: 4, working_sets: 2, reps_range: "10-12", exercise_order: 2 },
+      { name: "Leg press (pé baixo)", sets: 4, working_sets: 2, reps_range: "10-12", exercise_order: 3 },
+      { name: "Mesa flexora", sets: 4, working_sets: 2, reps_range: "10-12", exercise_order: 4 },
+      { name: "Panturrilha", sets: 5, working_sets: 3, reps_range: "12-15", exercise_order: 5 },
+    ],
+  },
+  {
+    name: "DIA 7 – DESCANSO",
+    short_name: "Descanso",
+    day_order: 7,
+    is_rest_day: true,
+    exercises: [],
+  },
+];
+
 export const PLAN_META: Record<WorkoutType, { name: string; description: string; frequency: string; focus: string }> = {
   upper_lower: {
     name: "Upper / Lower",
@@ -157,11 +243,27 @@ export const PLAN_META: Record<WorkoutType, { name: string; description: string;
     frequency: "5x por semana",
     focus: "Frente do corpo · Trás do corpo",
   },
+  pacholok: {
+    name: "Treino Pacholok",
+    description: "Divisão híbrida com foco em intensidade, poucas séries válidas e máxima eficiência para estética muscular.",
+    frequency: "5x por semana",
+    focus: "Pull · Push · Legs · Upper · Lower",
+  },
 };
 
 export async function createPlan(type: WorkoutType, userId: string): Promise<void> {
-  const days = type === "upper_lower" ? UPPER_LOWER_DAYS : ANTERIOR_POSTERIOR_DAYS;
-  const planName = type === "upper_lower" ? "Upper / Lower (5 Dias)" : "Anterior / Posterior (5 Dias)";
+  const days =
+    type === "upper_lower"
+      ? UPPER_LOWER_DAYS
+      : type === "anterior_posterior"
+      ? ANTERIOR_POSTERIOR_DAYS
+      : PACHOLOK_DAYS;
+  const planName =
+    type === "upper_lower"
+      ? "Upper / Lower (5 Dias)"
+      : type === "anterior_posterior"
+      ? "Anterior / Posterior (5 Dias)"
+      : "Treino Pacholok (7 Dias)";
 
   const { data: plan, error: planError } = await supabase
     .from("workout_plans")
@@ -191,6 +293,7 @@ export async function createPlan(type: WorkoutType, userId: string): Promise<voi
           day_id: day.id,
           name: ex.name,
           sets: ex.sets,
+          ...(ex.working_sets != null ? { working_sets: ex.working_sets } : {}),
           reps_range: ex.reps_range,
           exercise_order: ex.exercise_order,
         }))
@@ -199,9 +302,24 @@ export async function createPlan(type: WorkoutType, userId: string): Promise<voi
     }
   }
 
-  await supabase.from("profiles").update({ workout_type: type }).eq("id", userId);
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({ workout_type: type })
+    .eq("id", userId);
+  if (profileError) throw profileError;
 }
 
-export async function deleteUserPlans(userId: string): Promise<void> {
-  await supabase.from("workout_plans").delete().eq("user_id", userId);
+// Deletes all plans except the most recently created one.
+// Call this AFTER createPlan so the user is never left with zero plans.
+export async function deleteOldPlans(userId: string): Promise<void> {
+  const { data: plans } = await supabase
+    .from("workout_plans")
+    .select("id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (!plans || plans.length <= 1) return;
+
+  const idsToDelete = plans.slice(1).map((p: { id: string }) => p.id);
+  await supabase.from("workout_plans").delete().in("id", idsToDelete);
 }
