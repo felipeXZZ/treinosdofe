@@ -10,7 +10,7 @@ import {
   differenceInCalendarWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Dumbbell, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Award, BarChart2, MessageSquare } from "lucide-react";
+import { Dumbbell, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Award, BarChart2, MessageSquare, Trash2, X } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -306,6 +306,8 @@ export function History() {
   const [period, setPeriod] = useState<Period>("30d");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"history" | "progression">("history");
+  const [confirmDeleteSession, setConfirmDeleteSession] = useState<Session | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadHistory();
@@ -340,6 +342,26 @@ export function History() {
       console.error("Error loading history:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!confirmDeleteSession) return;
+    setDeleting(true);
+    try {
+      if (!isDemoMode) {
+        await supabase
+          .from("workout_logs")
+          .delete()
+          .eq("id", confirmDeleteSession.id);
+      }
+      setAllSessions((prev) => prev.filter((s) => s.id !== confirmDeleteSession.id));
+      if (expandedId === confirmDeleteSession.id) setExpandedId(null);
+    } catch (e) {
+      console.error("Error deleting session:", e);
+    } finally {
+      setDeleting(false);
+      setConfirmDeleteSession(null);
     }
   };
 
@@ -494,6 +516,7 @@ export function History() {
                       onToggle={() =>
                         setExpandedId(expandedId === s.id ? null : s.id)
                       }
+                      onDelete={() => setConfirmDeleteSession(s)}
                     />
                   ))}
                 </div>
@@ -528,6 +551,56 @@ export function History() {
       )}
 
       <div className="h-2" />
+
+      {/* Confirm delete modal */}
+      {confirmDeleteSession && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => !deleting && setConfirmDeleteSession(null)}
+        >
+          <div
+            className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-t-3xl p-5 pb-8 space-y-4 animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-zinc-100">Excluir treino?</h3>
+                <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                  {confirmDeleteSession.dayName}
+                  <br />
+                  {format(parseISO(confirmDeleteSession.date), "EEEE, d 'de' MMM", { locale: ptBR })}
+                </p>
+              </div>
+              <button
+                onClick={() => setConfirmDeleteSession(null)}
+                disabled={deleting}
+                className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-zinc-600">
+              Todos os dados desta sessão serão removidos permanentemente.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteSession(null)}
+                disabled={deleting}
+                className="flex-1 py-3 rounded-2xl border border-white/10 bg-zinc-800 text-sm font-medium text-zinc-300 hover:bg-zinc-700 transition-colors disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteSession}
+                disabled={deleting}
+                className="flex-1 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-sm font-semibold text-white transition-colors disabled:opacity-40"
+              >
+                {deleting ? "Excluindo..." : "Sim, excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -561,10 +634,12 @@ function SessionCard({
   session,
   expanded,
   onToggle,
+  onDelete,
 }: {
   session: Session;
   expanded: boolean;
   onToggle: () => void;
+  onDelete: () => void;
 }) {
   const totalSets = session.exercises.reduce(
     (a, ex) => a + ex.sets.filter((s) => s.completed).length,
@@ -573,11 +648,8 @@ function SessionCard({
 
   return (
     <div className={cn("glass rounded-2xl border border-white/[0.06] overflow-hidden transition-all duration-200")}>
-      <button
-        onClick={onToggle}
-        className="w-full text-left p-4 flex items-center gap-3"
-      >
-        <div className="flex-1 min-w-0">
+      <div className="p-4 flex items-center gap-3">
+        <button onClick={onToggle} className="flex-1 min-w-0 text-left">
           <p className="text-sm font-semibold text-zinc-100 leading-tight">
             {session.dayName}
           </p>
@@ -594,15 +666,23 @@ function SessionCard({
               </span>
             )}
           </div>
+        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={onDelete}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-700 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={onToggle} className="text-zinc-600">
+            {expanded ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </button>
         </div>
-        <div className="shrink-0 text-zinc-600">
-          {expanded ? (
-            <ChevronUp className="w-4 h-4" />
-          ) : (
-            <ChevronDown className="w-4 h-4" />
-          )}
-        </div>
-      </button>
+      </div>
 
       {expanded && (session.exercises.length > 0 || session.notes) && (
         <div className="border-t border-white/[0.05] px-4 pb-4 pt-3 space-y-3 animate-fade-in">

@@ -21,13 +21,16 @@ function getSetType(
 }
 
 // ── Mark today as trained in the weekly consistency key ──────────────────────
-function markTodayConsistency() {
+function markTodayConsistency(day?: { id: string; name: string; is_rest_day: boolean; color?: string }) {
   try {
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const key = `consistency_${format(weekStart, "yyyy-MM-dd")}`;
-    const existing = new Set<number>(JSON.parse(localStorage.getItem(key) || "[]"));
-    existing.add(new Date().getDay());
-    localStorage.setItem(key, JSON.stringify([...existing]));
+    const v2Key = `consistency_v2_${format(weekStart, "yyyy-MM-dd")}`;
+    const existing: Record<number, unknown> = JSON.parse(localStorage.getItem(v2Key) || "{}");
+    const dayValue = new Date().getDay();
+    existing[dayValue] = day
+      ? { dayId: day.id, dayName: day.name, isRestDay: day.is_rest_day, color: day.color }
+      : { dayId: "", dayName: "Treino", isRestDay: false };
+    localStorage.setItem(v2Key, JSON.stringify(existing));
   } catch {}
 }
 
@@ -288,7 +291,7 @@ export function Workout() {
 
   const finishWorkout = async () => {
     // Always mark today in localStorage consistency
-    markTodayConsistency();
+    markTodayConsistency(day);
 
     try {
       if (isDemoMode) {

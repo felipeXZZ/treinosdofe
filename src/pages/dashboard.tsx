@@ -4,9 +4,9 @@ import { supabase, isDemoMode } from "@/src/lib/supabase";
 import { getDemoActiveDays, getCurrentDemoDay, resetDemoDay } from "@/src/lib/demo-data";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { Play, Flame, Activity, Dumbbell, RotateCcw, Moon } from "lucide-react";
+import { Play, Flame, Activity, Dumbbell, RotateCcw, Moon, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek } from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/src/lib/utils";
 
@@ -19,22 +19,50 @@ type PlanDay = {
   color?: string;
 };
 
-// ── Consistency helpers (localStorage, resets each calendar week) ────────────
+// ── Consistency helpers ────────────────────────────────────────────────────────
+// Storage format: Record<number, ConsistencyEntry> keyed by JS getDay() value
+type ConsistencyEntry = {
+  dayId: string;
+  dayName: string;
+  isRestDay: boolean;
+  color?: string;
+};
+
 function getConsistencyKey() {
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  return `consistency_${format(weekStart, "yyyy-MM-dd")}`;
+  return `consistency_v2_${format(weekStart, "yyyy-MM-dd")}`;
 }
-function loadConsistency(): Set<number> {
+
+function loadConsistencyData(): Record<number, ConsistencyEntry> {
   try {
     const raw = localStorage.getItem(getConsistencyKey());
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as number[]);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<number, ConsistencyEntry>;
   } catch {
-    return new Set();
+    return {};
   }
 }
-function saveConsistency(days: Set<number>) {
-  localStorage.setItem(getConsistencyKey(), JSON.stringify([...days]));
+
+function saveConsistencyData(data: Record<number, ConsistencyEntry>) {
+  localStorage.setItem(getConsistencyKey(), JSON.stringify(data));
+}
+
+function getDayAbbreviation(name: string, isRestDay: boolean): string {
+  if (isRestDay) return "DSC";
+  const u = name.toUpperCase();
+  if (u.includes("PULL")) return "PULL";
+  if (u.includes("PUSH")) return "PUSH";
+  if (u.includes("LEGS") || (u.includes("LEG") && !u.includes("LEVE"))) return "LEGS";
+  if (u.includes("UPPER") && u.includes("PEITO")) return "UP·P";
+  if (u.includes("UPPER") && u.includes("COSTAS")) return "UP·C";
+  if (u.includes("UPPER") && u.includes("ESTET")) return "UP·E";
+  if (u.includes("UPPER")) return "UP";
+  if (u.includes("LOWER") && u.includes("QUAD")) return "LW·Q";
+  if (u.includes("LOWER") || u.includes("POSTERIOR")) return "LW·P";
+  if (u.includes("LOWER")) return "LW";
+  if (u.includes("ANTERIOR")) return "ANT";
+  if (u.includes("CARDIO")) return "CARD";
+  return name.substring(0, 4).toUpperCase();
 }
 
 const DAY_COLORS = [
@@ -50,9 +78,17 @@ export function Dashboard() {
   const [todayWorkout, setTodayWorkout] = useState<PlanDay | null>(null);
   const [allDays, setAllDays] = useState<PlanDay[]>([]);
   const [firstDayId, setFirstDayId] = useState<string | null>(null);
-  const [trainedDays, setTrainedDays] = useState<Set<number>>(() => loadConsistency());
+  const [consistencyData, setConsistencyData] = useState<Record<number, ConsistencyEntry>>(
+    () => loadConsistencyData()
+  );
   const [weeklyCardioMinutes, setWeeklyCardioMinutes] = useState(0);
   const [loading, setLoading] = useState(true);
+  // Modal state — select workout
+  const [modalDayValue, setModalDayValue] = useState<number | null>(null);
+  const [savingLog, setSavingLog] = useState(false);
+  // Modal state — confirm removal
+  const [confirmRemoveDayValue, setConfirmRemoveDayValue] = useState<number | null>(null);
+  const [removingLog, setRemovingLog] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -86,7 +122,6 @@ export function Dashboard() {
       const weekStartStr = format(weekStart, "yyyy-MM-dd");
       const weekEndStr = format(weekEnd, "yyyy-MM-dd");
 
-      // Round 1 – three independent queries in parallel
       const [profileRes, plansRes, cardioRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase
@@ -115,8 +150,6 @@ export function Dashboard() {
       }
 
       if (plansRes.data && plansRes.data.length > 0) {
-        // Pick the plan that matches the profile's workout_type.
-        // Fallback to the most recently created plan if none matches.
         const workoutType = profileRes.data?.workout_type ?? "upper_lower";
         const typeKeyMap: Record<string, string> = {
           upper_lower: "Upper",
@@ -129,7 +162,6 @@ export function Dashboard() {
           plansRes.data[0];
         const planId = activePlan.id;
 
-        // Round 2 – days list + last log (with day_order via join) in parallel
         const [daysRes, lastLogRes] = await Promise.all([
           supabase
             .from("workout_days")
@@ -167,14 +199,104 @@ export function Dashboard() {
     }
   };
 
-  const toggleConsistencyDay = (dayIndex: number) => {
-    setTrainedDays((prev) => {
-      const next = new Set<number>(prev);
-      if (next.has(dayIndex)) next.delete(dayIndex);
-      else next.add(dayIndex);
-      saveConsistency(next);
-      return next;
-    });
+  const handleConsistencyDayTap = (dayValue: number) => {
+    if (consistencyData[dayValue]) {
+      // Already trained — ask confirmation before removing
+      setConfirmRemoveDayValue(dayValue);
+    } else {
+      // Open modal to ask what was trained
+      setModalDayValue(dayValue);
+    }
+  };
+
+  const handleConfirmRemove = async () => {
+    if (confirmRemoveDayValue === null) return;
+    setRemovingLog(true);
+    const entry = consistencyData[confirmRemoveDayValue];
+
+    // Remove from localStorage first
+    const next = { ...consistencyData };
+    delete next[confirmRemoveDayValue];
+    setConsistencyData(next);
+    saveConsistencyData(next);
+
+    // Delete workout_log from Supabase if it was created by this system
+    if (!isDemoMode && entry) {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+          const offset = confirmRemoveDayValue === 0 ? 6 : confirmRemoveDayValue - 1;
+          const dateForDay = format(addDays(weekStart, offset), "yyyy-MM-dd");
+
+          await supabase
+            .from("workout_logs")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("day_id", entry.dayId)
+            .eq("date", dateForDay);
+        }
+      } catch (e) {
+        console.error("Error deleting workout log:", e);
+      }
+    }
+
+    setRemovingLog(false);
+    setConfirmRemoveDayValue(null);
+  };
+
+  const handleSelectWorkout = async (planDay: PlanDay) => {
+    if (modalDayValue === null) return;
+    setSavingLog(true);
+
+    const entry: ConsistencyEntry = {
+      dayId: planDay.id,
+      dayName: planDay.name,
+      isRestDay: planDay.is_rest_day,
+      color: (planDay as any).color,
+    };
+
+    const next = { ...consistencyData, [modalDayValue]: entry };
+    setConsistencyData(next);
+    saveConsistencyData(next);
+
+    // Create workout_log so it appears in history (real users only)
+    if (!isDemoMode) {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+          const offset = modalDayValue === 0 ? 6 : modalDayValue - 1;
+          const dateForDay = format(addDays(weekStart, offset), "yyyy-MM-dd");
+
+          const { data: existing } = await supabase
+            .from("workout_logs")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("day_id", planDay.id)
+            .eq("date", dateForDay)
+            .maybeSingle();
+
+          if (!existing) {
+            await supabase.from("workout_logs").insert({
+              user_id: user.id,
+              day_id: planDay.id,
+              date: dateForDay,
+              completed_at: new Date().toISOString(),
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Error creating workout log:", e);
+      }
+    }
+
+    setSavingLog(false);
+    setModalDayValue(null);
   };
 
   const handleReset = () => {
@@ -198,14 +320,12 @@ export function Dashboard() {
   }
 
   const firstName = profile?.name ? profile.name.split(" ")[0] : "Atleta";
+  const trainedCount = Object.keys(consistencyData).length;
 
   return (
     <div className="p-5 space-y-7 max-w-md mx-auto">
       {/* Header */}
-      <header
-        className="pt-4 animate-slide-up"
-        style={{ animationDelay: "0ms" }}
-      >
+      <header className="pt-4 animate-slide-up" style={{ animationDelay: "0ms" }}>
         <h1 className="text-2xl font-bold tracking-tight">Olá, {firstName}</h1>
         <p className="text-zinc-400 text-sm capitalize mt-0.5">
           {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
@@ -214,10 +334,7 @@ export function Dashboard() {
 
       {/* Today's Workout */}
       {todayWorkout && (
-        <section
-          className="animate-slide-up"
-          style={{ animationDelay: "60ms" }}
-        >
+        <section className="animate-slide-up" style={{ animationDelay: "60ms" }}>
           <h2 className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-widest">
             Próximo treino
           </h2>
@@ -226,7 +343,7 @@ export function Dashboard() {
               <div className="flex items-start gap-3 mb-4">
                 <div
                   className={cn(
-                    "w-2.5 h-2.5 rounded-full mt-2 shrink-0 shadow-lg",
+                    "w-2.5 h-2.5 rounded-full mt-2 shrink-0",
                     (todayWorkout as any).color ??
                       DAY_COLORS[(todayWorkout.day_order - 1) % DAY_COLORS.length]
                   )}
@@ -262,40 +379,40 @@ export function Dashboard() {
       >
         <div className="bg-zinc-900/80 rounded-2xl border border-white/[0.07] p-4 flex flex-col items-center justify-center text-center">
           <Flame className="w-5 h-5 text-orange-400 mb-2" />
-          <span className="text-2xl font-bold text-zinc-100">
-            {trainedDays.size}
-          </span>
+          <span className="text-2xl font-bold text-zinc-100">{trainedCount}</span>
           <span className="text-xs text-zinc-500 mt-0.5">Treinos na semana</span>
         </div>
         <div className="bg-zinc-900/80 rounded-2xl border border-white/[0.07] p-4 flex flex-col items-center justify-center text-center">
           <Activity className="w-5 h-5 text-blue-400 mb-2" />
-          <span className="text-2xl font-bold text-zinc-100">
-            {weeklyCardioMinutes}
-          </span>
+          <span className="text-2xl font-bold text-zinc-100">{weeklyCardioMinutes}</span>
           <span className="text-xs text-zinc-500 mt-0.5">Min. de cardio</span>
         </div>
       </section>
 
-      {/* Consistency dots — manual, tap to mark */}
-      <section
-        className="animate-slide-up"
-        style={{ animationDelay: "180ms" }}
-      >
+      {/* Consistency dots */}
+      <section className="animate-slide-up" style={{ animationDelay: "180ms" }}>
         <h2 className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-widest">
           Consistência semanal
         </h2>
         <div className="glass rounded-2xl border p-4">
           <p className="text-[11px] text-zinc-600 mb-4 text-center">
-            Toque no dia para marcar
+            Toque no dia para registrar o treino
           </p>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-end">
             {["S", "T", "Q", "Q", "S", "S", "D"].map((label, i) => {
-              // Display starts Monday (i=0) → getDay()=1, ..., Sunday (i=6) → getDay()=0
               const dayValue = (i + 1) % 7;
-              const trained = trainedDays.has(dayValue);
+              const entry = consistencyData[dayValue];
+              const trained = !!entry;
               const isToday = new Date().getDay() === dayValue;
+              const abbrev = trained
+                ? getDayAbbreviation(entry.dayName, entry.isRestDay)
+                : null;
+              const dotColor = trained
+                ? entry.color ?? DAY_COLORS[0]
+                : null;
+
               return (
-                <div key={i} className="flex flex-col items-center gap-2">
+                <div key={i} className="flex flex-col items-center gap-1.5">
                   <span
                     className={cn(
                       "text-[10px] font-semibold",
@@ -305,9 +422,9 @@ export function Dashboard() {
                     {label}
                   </span>
                   <button
-                    onClick={() => toggleConsistencyDay(dayValue)}
+                    onClick={() => handleConsistencyDayTap(dayValue)}
                     className={cn(
-                      "w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90",
+                      "w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 relative",
                       trained
                         ? "bg-zinc-100 text-zinc-900 shadow-lg shadow-zinc-100/20"
                         : isToday
@@ -315,10 +432,19 @@ export function Dashboard() {
                         : "bg-zinc-800/40 text-zinc-600 hover:bg-zinc-800"
                     )}
                   >
-                    {trained && (
+                    {trained ? (
                       <CheckIcon className="w-4 h-4 animate-check-pop" />
-                    )}
+                    ) : null}
                   </button>
+                  {/* Trained label below circle */}
+                  <span
+                    className={cn(
+                      "text-[8px] font-bold tracking-wide leading-none",
+                      trained ? "text-zinc-300" : "text-transparent"
+                    )}
+                  >
+                    {abbrev ?? "···"}
+                  </span>
                 </div>
               );
             })}
@@ -328,10 +454,7 @@ export function Dashboard() {
 
       {/* Plan — all days */}
       {allDays.length > 0 && (
-        <section
-          className="animate-slide-up"
-          style={{ animationDelay: "240ms" }}
-        >
+        <section className="animate-slide-up" style={{ animationDelay: "240ms" }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
               Plano de treino
@@ -395,6 +518,113 @@ export function Dashboard() {
       )}
 
       <div className="h-2" />
+
+      {/* Modal — Select what was trained */}
+      {modalDayValue !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setModalDayValue(null)}
+        >
+          <div
+            className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-t-3xl p-5 pb-8 space-y-4 animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-zinc-100">O que você treinou?</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Selecione o treino realizado</p>
+              </div>
+              <button
+                onClick={() => setModalDayValue(null)}
+                className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Plan day options */}
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {allDays.map((day, idx) => {
+                const color = (day as any).color ?? DAY_COLORS[idx % DAY_COLORS.length];
+                return (
+                  <button
+                    key={day.id}
+                    onClick={() => handleSelectWorkout(day)}
+                    disabled={savingLog}
+                    className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/[0.07] bg-zinc-800/50 hover:bg-zinc-800 hover:border-white/15 text-left transition-all active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", color)} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-200 leading-tight truncate">
+                        {day.name}
+                      </p>
+                    </div>
+                    {day.is_rest_day ? (
+                      <Moon className="w-4 h-4 text-zinc-500 shrink-0" />
+                    ) : (
+                      <Dumbbell className="w-4 h-4 text-zinc-500 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {savingLog && (
+              <p className="text-center text-xs text-zinc-500">Salvando...</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal — Confirm removal */}
+      {confirmRemoveDayValue !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => !removingLog && setConfirmRemoveDayValue(null)}
+        >
+          <div
+            className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-t-3xl p-5 pb-8 space-y-4 animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-zinc-100">Remover treino?</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {consistencyData[confirmRemoveDayValue]
+                    ? consistencyData[confirmRemoveDayValue].dayName
+                    : "Este treino"}{" "}
+                  será removido do histórico.
+                </p>
+              </div>
+              <button
+                onClick={() => setConfirmRemoveDayValue(null)}
+                disabled={removingLog}
+                className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmRemoveDayValue(null)}
+                disabled={removingLog}
+                className="flex-1 py-3 rounded-2xl border border-white/10 bg-zinc-800 text-sm font-medium text-zinc-300 hover:bg-zinc-700 transition-colors disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmRemove}
+                disabled={removingLog}
+                className="flex-1 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-sm font-semibold text-white transition-colors disabled:opacity-40"
+              >
+                {removingLog ? "Removendo..." : "Sim, remover"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
