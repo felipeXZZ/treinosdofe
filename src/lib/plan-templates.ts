@@ -30,8 +30,8 @@ export const UPPER_LOWER_DAYS: DayTemplate[] = [
       { name: "Puxada na frente", sets: 3, reps_range: "8-10", exercise_order: 3 },
       { name: "Remada máquina", sets: 3, reps_range: "8-10", exercise_order: 4 },
       { name: "Elevação lateral halter", sets: 4, reps_range: "12-15", exercise_order: 5 },
-      { name: "Tríceps corda", sets: 3, reps_range: "10-12", exercise_order: 6 },
-      { name: "Rosca direta", sets: 3, reps_range: "10-12", exercise_order: 7 },
+      { name: "Tríceps francês na polia (chifre)", sets: 3, reps_range: "10-12", exercise_order: 6 },
+      { name: "Rosca direta", sets: 3, reps_range: "8-12", exercise_order: 7 },
     ],
   },
   {
@@ -66,8 +66,8 @@ export const UPPER_LOWER_DAYS: DayTemplate[] = [
       { name: "Crucifixo inverso", sets: 3, reps_range: "12-15", exercise_order: 3 },
       { name: "Elevação lateral halter", sets: 4, reps_range: "12-15", exercise_order: 4 },
       { name: "Supino inclinado máquina", sets: 3, reps_range: "10-12", exercise_order: 5 },
-      { name: "Rosca alternada", sets: 3, reps_range: "10-12", exercise_order: 6 },
-      { name: "Lateral (tríceps com chifre)", sets: 3, reps_range: "10-12", exercise_order: 7 },
+      { name: "Rosca Scott", sets: 3, reps_range: "10-12", exercise_order: 6 },
+      { name: "Tríceps francês na polia (chifre)", sets: 3, reps_range: "10-12", exercise_order: 7 },
     ],
   },
   {
@@ -157,6 +157,7 @@ export const PACHOLOK_DAYS: DayTemplate[] = [
       { name: "Pulley triângulo", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 3 },
       { name: "Crucifixo inverso", sets: 4, working_sets: 2, reps_range: "12-15", exercise_order: 4 },
       { name: "Rosca Scott", sets: 5, working_sets: 3, reps_range: "10-12", exercise_order: 5 },
+      { name: "Rosca direta (barra ou W)", sets: 4, working_sets: 2, reps_range: "8-10", exercise_order: 6 },
     ],
   },
   {
@@ -307,6 +308,105 @@ export async function createPlan(type: WorkoutType, userId: string): Promise<voi
     .update({ workout_type: type })
     .eq("id", userId);
   if (profileError) throw profileError;
+}
+
+export async function migrateUpperLowerExercises(userId: string): Promise<void> {
+  const { data: plans } = await supabase
+    .from("workout_plans")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("name", "Upper / Lower (5 Dias)");
+
+  if (!plans || plans.length === 0) return;
+
+  const planIds = plans.map((p: { id: string }) => p.id);
+
+  const { data: days } = await supabase
+    .from("workout_days")
+    .select("id, day_order")
+    .in("plan_id", planIds)
+    .in("day_order", [1, 4]);
+
+  if (!days || days.length === 0) return;
+
+  const day1Ids = days.filter((d: any) => d.day_order === 1).map((d: any) => d.id);
+  const day4Ids = days.filter((d: any) => d.day_order === 4).map((d: any) => d.id);
+
+  if (day1Ids.length > 0) {
+    await supabase
+      .from("exercises")
+      .update({ name: "Tríceps francês na polia (chifre)" })
+      .in("day_id", day1Ids)
+      .eq("exercise_order", 6)
+      .eq("name", "Tríceps corda");
+
+    await supabase
+      .from("exercises")
+      .update({ reps_range: "8-12" })
+      .in("day_id", day1Ids)
+      .eq("exercise_order", 7)
+      .eq("name", "Rosca direta");
+  }
+
+  if (day4Ids.length > 0) {
+    await supabase
+      .from("exercises")
+      .update({ name: "Rosca Scott" })
+      .in("day_id", day4Ids)
+      .eq("exercise_order", 6)
+      .eq("name", "Rosca alternada");
+
+    await supabase
+      .from("exercises")
+      .update({ name: "Tríceps francês na polia (chifre)" })
+      .in("day_id", day4Ids)
+      .eq("exercise_order", 7)
+      .eq("name", "Lateral (tríceps com chifre)");
+  }
+}
+
+export async function migratePacholokDay1(userId: string): Promise<void> {
+  const { data: plans } = await supabase
+    .from("workout_plans")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("name", "Treino Pacholok (7 Dias)");
+
+  if (!plans || plans.length === 0) return;
+
+  const planIds = plans.map((p: { id: string }) => p.id);
+
+  const { data: days } = await supabase
+    .from("workout_days")
+    .select("id")
+    .in("plan_id", planIds)
+    .eq("day_order", 1);
+
+  if (!days || days.length === 0) return;
+
+  for (const day of days) {
+    const { data: existing } = await supabase
+      .from("exercises")
+      .select("id")
+      .eq("day_id", day.id)
+      .eq("name", "Rosca direta (barra ou W)")
+      .order("id", { ascending: true });
+
+    if (!existing || existing.length === 0) {
+      await supabase.from("exercises").insert({
+        day_id: day.id,
+        name: "Rosca direta (barra ou W)",
+        sets: 4,
+        working_sets: 2,
+        reps_range: "8-10",
+        exercise_order: 6,
+      });
+    } else if (existing.length > 1) {
+      // Remove duplicatas, mantém apenas o primeiro
+      const idsToDelete = existing.slice(1).map((e: any) => e.id);
+      await supabase.from("exercises").delete().in("id", idsToDelete);
+    }
+  }
 }
 
 // Deletes all plans except the most recently created one.

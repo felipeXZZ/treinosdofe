@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as React from "react";
 import { supabase, isDemoMode } from "@/src/lib/supabase";
+import { migrateUpperLowerExercises, migratePacholokDay1 } from "@/src/lib/plan-templates";
 import { getDemoActiveDays, getCurrentDemoDay, resetDemoDay } from "@/src/lib/demo-data";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
@@ -116,6 +117,9 @@ export function Dashboard() {
         navigate("/login");
         return;
       }
+
+      migrateUpperLowerExercises(user.id);
+      migratePacholokDay1(user.id);
 
       const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
       const weekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
